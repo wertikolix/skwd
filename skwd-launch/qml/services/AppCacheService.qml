@@ -14,11 +14,11 @@ QtObject {
     readonly property string steamDir: Config.steamDir || (homeDir + "/.local/share/Steam")
     readonly property string splashDir: Config.splashDir
     readonly property string cacheFile: cacheDir + "/app-launcher/list.jsonl"
-    readonly property string thumbDir: cacheDir + "/app-launcher/thumbs"
+    readonly property string thumbDir: cacheDir + "/app-launcher/thumbs2"
     readonly property string splashThumbDir: cacheDir + "/app-launcher/splash-thumbs"
     readonly property string versionFile: cacheDir + "/app-launcher/list.version"
 
-    readonly property int cacheVersion: 3
+    readonly property int cacheVersion: 4
     readonly property string appsJsonPath: configDir + "/data/apps.json"
     readonly property int thumbSize: 256
     readonly property int splashThumbWidth: 640
@@ -290,7 +290,7 @@ QtObject {
             var slug = (entry.source === "steam")
                 ? "steam_" + entry.steamAppId
                 : entry.name.replace(/[^a-zA-Z0-9_-]/g, '_')
-            var ext = (entry.source === "steam") ? ".jpg" : ".png"
+            var ext = (entry.source === "steam") ? ".jpg" : (/\.svg$/i.test(entry.iconPath || "") ? ".svg" : ".png")
             entry._thumbPath = thumbDir + "/" + slug + ext
             entry._slug = slug
 
@@ -357,11 +357,16 @@ QtObject {
             var icon = _sq(entry.iconPath)
             var thumb = _sq(entry._thumbPath)
             var sz = thumbSize
-            parts.push(
-                "[ -f " + thumb + " ] || " +
-                "magick " + icon + " -resize " + sz + "x" + sz + " -background none -gravity center -extent " + sz + "x" + sz + " " + thumb + " 2>/dev/null || " +
-                "cp " + icon + " " + thumb + " 2>/dev/null || true"
-            )
+            if (/\.svg$/i.test(entry.iconPath)) {
+                // Qt renders SVG natively with transparency - just copy it
+                parts.push("[ -f " + thumb + " ] || cp " + icon + " " + thumb + " 2>/dev/null || true")
+            } else {
+                parts.push(
+                    "[ -f " + thumb + " ] || " +
+                    "magick -background none " + icon + " -resize " + sz + "x" + sz + " -gravity center -extent " + sz + "x" + sz + " " + thumb + " 2>/dev/null || " +
+                    "cp " + icon + " " + thumb + " 2>/dev/null || true"
+                )
+            }
         }
 
         if (entry._bgSrc && entry._bgThumbPath) {
