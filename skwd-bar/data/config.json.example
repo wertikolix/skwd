@@ -11,6 +11,20 @@
   "components": {
     "bar": {
       "enabled": true,
+      "workspaces": {
+        "enabled": true,
+        "hideWhenSingle": false,
+        "hideEmpty": false,
+        "allOutputs": false,
+        "maxShown": 10
+      },
+      "windowTitle": { "enabled": true, "maxWidth": 260 },
+      "tray": { "enabled": true },
+      "kblayout": { "enabled": true },
+      "netspeed": { "enabled": true, "refreshSec": 2, "interface": "" },
+      "disk": { "enabled": true },
+      "clock": { "showDate": false, "dateFormat": "ddd d MMM", "showSeconds": false },
+      "volumeScrollStep": 5,
       "weather": {
         "enabled": true,
         "city": "YOUR_CITY"

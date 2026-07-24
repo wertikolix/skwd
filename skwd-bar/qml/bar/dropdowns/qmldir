@@ -8,3 +8,4 @@ WeatherDropdown 1.0 WeatherDropdown.qml
 WiFiDropdown 1.0 WiFiDropdown.qml
 QsMemDropdown 1.0 QsMemDropdown.qml
 DropdownTail 1.0 DropdownTail.qml
+TrayMenuDropdown 1.0 TrayMenuDropdown.qml

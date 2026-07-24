@@ -87,10 +87,16 @@ QtObject {
     property var _battery: _bar.battery ?? ({})
     readonly property var    barBatteryNotifyRules: Array.isArray(_battery.notify) ? _battery.notify : []
 
-    readonly property var _defaultBarLeftLayout:  ["cpu", "gpu", "memory"]
-    readonly property var _defaultBarRightLayout: ["weather", "bluetooth", "wifi", "brightness", "battery", "volume", "notifications", "clock"]
-    readonly property var allBarWidgets: ["cpu", "gpu", "memory", "qsmem", "weather", "bluetooth", "wifi", "volume", "clock", "brightness", "battery", "notifications"]
+    readonly property var _defaultBarLeftLayout:  ["workspaces", "window", "cpu", "gpu", "memory"]
+    readonly property var _defaultBarRightLayout: ["netspeed", "tray", "weather", "bluetooth", "wifi", "brightness", "battery", "volume", "notifications", "kblayout", "clock"]
+    readonly property var allBarWidgets: ["workspaces", "window", "cpu", "gpu", "memory", "qsmem", "disk", "netspeed", "tray", "kblayout", "weather", "bluetooth", "wifi", "volume", "clock", "brightness", "battery", "notifications"]
     readonly property var barWidgetLabels: ({
+        "workspaces": "Workspaces",
+        "window": "Window title",
+        "disk": "Disk",
+        "netspeed": "Net speed",
+        "tray": "System tray",
+        "kblayout": "Keyboard layout",
         "cpu": "CPU",
         "gpu": "GPU",
         "memory": "Memory",
@@ -105,6 +111,12 @@ QtObject {
         "notifications": "Notifications"
     })
     readonly property var barWidgetIcons: ({
+        "workspaces":    "󰍺",
+        "window":        "󰖯",
+        "disk":          "󰋊",
+        "netspeed":      "󰓅",
+        "tray":          "󰀻",
+        "kblayout":      "󰌌",
         "cpu":           "󰻠",
         "gpu":           "󰢮",
         "memory":        "󰍛",
@@ -133,7 +145,35 @@ QtObject {
     readonly property string barWifiInterface:  _bar.wifi?.interface ?? ""
     readonly property bool   barBluetoothEnabled: _bar.bluetooth !== false
     readonly property bool   barVolumeEnabled:  _bar.volume !== false
+    readonly property int    barVolumeScrollStep: _bar.volumeScrollStep ?? 5
     readonly property bool   barCalendarEnabled:_bar.calendar !== false
+
+    property var _barClock: (typeof _bar.clock === "object" && _bar.clock !== null) ? _bar.clock : ({})
+    readonly property bool   barClockShowDate:    _barClock.showDate === true
+    readonly property bool   barClockShowSeconds: _barClock.showSeconds === true
+    readonly property string barClockDateFormat:  _barClock.dateFormat ?? "ddd d MMM"
+
+    property var _barWorkspaces: (typeof _bar.workspaces === "object" && _bar.workspaces !== null) ? _bar.workspaces : ({})
+    readonly property bool barWorkspacesEnabled:        _bar.workspaces !== false && _barWorkspaces.enabled !== false
+    readonly property bool barWorkspacesHideWhenSingle: _barWorkspaces.hideWhenSingle === true
+    readonly property bool barWorkspacesHideEmpty:      _barWorkspaces.hideEmpty === true
+    readonly property bool barWorkspacesAllOutputs:     _barWorkspaces.allOutputs === true
+    readonly property int  barWorkspacesMaxShown:       _barWorkspaces.maxShown ?? 10
+
+    readonly property bool barTrayEnabled: _bar.tray !== false && _bar.tray?.enabled !== false
+
+    property var _barNetspeed: (typeof _bar.netspeed === "object" && _bar.netspeed !== null) ? _bar.netspeed : ({})
+    readonly property bool   barNetspeedEnabled:    _bar.netspeed !== false && _barNetspeed.enabled !== false
+    readonly property int    barNetspeedRefreshSec: _barNetspeed.refreshSec ?? 2
+    readonly property string barNetspeedInterface:  _barNetspeed.interface ?? ""
+
+    readonly property bool barKblayoutEnabled: _bar.kblayout !== false && _bar.kblayout?.enabled !== false
+
+    property var _barWindowTitle: (typeof _bar.windowTitle === "object" && _bar.windowTitle !== null) ? _bar.windowTitle : ({})
+    readonly property bool barWindowTitleEnabled:  _bar.windowTitle !== false && _barWindowTitle.enabled !== false
+    readonly property int  barWindowTitleMaxWidth: _barWindowTitle.maxWidth ?? 260
+
+    readonly property bool barDiskEnabled: _bar.disk !== false && _bar.disk?.enabled !== false
     readonly property bool   barQsmemEnabled:   _bar.qsmem?.enabled !== false
     readonly property int    barQsmemRefreshSec:_bar.qsmem?.refreshSec ?? 5
     readonly property bool   barMusicEnabled:   _bar.music !== undefined && _bar.music !== false && _bar.music?.enabled !== false

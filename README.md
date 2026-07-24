@@ -1,5 +1,10 @@
 # Skwd - A skewed (Quick)shell
 
+> **Fork note (wertikolix/skwd):** this fork adds a bunch of new bar widgets while keeping the original skewed parallelogram look:
+> workspaces (with skewed chips, click/scroll to switch), system tray, keyboard layout (click/scroll to switch), network speed,
+> focused window title and disk usage. The clock gained optional date + seconds, and the volume widget now supports scroll-to-change
+> and middle-click mute. All of it is toggleable from Skwd-settings (Bar section).
+
 ![Stars](https://img.shields.io/github/stars/liixini/skwd?style=for-the-badge)
 ![License](https://img.shields.io/github/license/liixini/skwd?style=for-the-badge)
 ![Last Commit](https://img.shields.io/github/last-commit/liixini/skwd?style=for-the-badge)

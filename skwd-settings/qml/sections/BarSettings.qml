@@ -13,6 +13,9 @@ Item {
   readonly property var categories: [
     { key: "widgets",       label: "WIDGETS" },
     { key: "layout",        label: "LAYOUT" },
+    { key: "workspaces",    label: "WORKSPACES" },
+    { key: "clock",         label: "CLOCK" },
+    { key: "system",        label: "SYSTEM" },
     { key: "weather",       label: "WEATHER" },
     { key: "wifi",          label: "WIFI" },
     { key: "battery",       label: "BATTERY" },
@@ -119,6 +122,12 @@ Item {
         colors: root.colors
         title: "Enabled widgets"
         RowToggle { colors: root.colors; title: "Bar enabled";        checked: Config.barEnabled;          onToggle: function(v) { root._save("enabled", v) } }
+        RowToggle { colors: root.colors; title: "Workspaces widget";  checked: Config.barWorkspacesEnabled; onToggle: function(v) { SettingsService.setPath("components.bar.workspaces.enabled", v) } }
+        RowToggle { colors: root.colors; title: "Window title widget"; checked: Config.barWindowTitleEnabled; onToggle: function(v) { SettingsService.setPath("components.bar.windowTitle.enabled", v) } }
+        RowToggle { colors: root.colors; title: "System tray widget"; description: "Hidden automatically while no tray apps are running."; checked: Config.barTrayEnabled; onToggle: function(v) { SettingsService.setPath("components.bar.tray.enabled", v) } }
+        RowToggle { colors: root.colors; title: "Keyboard layout widget"; description: "Hidden automatically when only one layout is configured. Click or scroll to switch."; checked: Config.barKblayoutEnabled; onToggle: function(v) { SettingsService.setPath("components.bar.kblayout.enabled", v) } }
+        RowToggle { colors: root.colors; title: "Network speed widget"; checked: Config.barNetspeedEnabled;  onToggle: function(v) { SettingsService.setPath("components.bar.netspeed.enabled", v) } }
+        RowToggle { colors: root.colors; title: "Disk usage widget";  checked: Config.barDiskEnabled;      onToggle: function(v) { SettingsService.setPath("components.bar.disk.enabled", v) } }
         RowToggle { colors: root.colors; title: "Calendar widget";    checked: Config.barCalendarEnabled;  onToggle: function(v) { root._save("calendar", v) } }
         RowToggle { colors: root.colors; title: "Volume widget";      checked: Config.barVolumeEnabled;    onToggle: function(v) { root._save("volume", v) } }
         RowToggle { colors: root.colors; title: "Bluetooth widget";   checked: Config.barBluetoothEnabled; onToggle: function(v) { root._save("bluetooth", v) } }
@@ -599,6 +608,138 @@ Item {
               }
             }
           }
+        }
+      }
+    }
+
+
+    Column {
+      visible: root.activeCategory === "workspaces"
+      width: parent.width
+      spacing: 14 * Config.uiScale
+
+      SettingsCard {
+        colors: root.colors
+        title: "Workspaces widget"
+        RowToggle {
+          colors: root.colors
+          title: "Hide when only one workspace"
+          description: "Why show a workspace switcher when there's nothing to switch to?"
+          checked: Config.barWorkspacesHideWhenSingle
+          onToggle: function(v) { SettingsService.setPath("components.bar.workspaces.hideWhenSingle", v) }
+        }
+        RowToggle {
+          colors: root.colors
+          title: "Hide empty workspaces"
+          description: "Only show workspaces that contain windows (the focused one always stays visible)."
+          checked: Config.barWorkspacesHideEmpty
+          onToggle: function(v) { SettingsService.setPath("components.bar.workspaces.hideEmpty", v) }
+        }
+        RowToggle {
+          colors: root.colors
+          title: "Show all outputs"
+          description: "Include workspaces from every monitor, not just the bar's monitor."
+          checked: Config.barWorkspacesAllOutputs
+          onToggle: function(v) { SettingsService.setPath("components.bar.workspaces.allOutputs", v) }
+        }
+        RowInput {
+          colors: root.colors
+          title: "Max workspaces shown"
+          description: "Cap how many workspace chips the bar will render."
+          value: Config.barWorkspacesMaxShown
+          min: 1; max: 30
+          onCommit: function(v) { SettingsService.setPath("components.bar.workspaces.maxShown", v) }
+        }
+      }
+    }
+
+
+    Column {
+      visible: root.activeCategory === "clock"
+      width: parent.width
+      spacing: 14 * Config.uiScale
+
+      SettingsCard {
+        colors: root.colors
+        title: "Clock widget"
+        RowToggle {
+          colors: root.colors
+          title: "Show date"
+          description: "Show the date next to the time in the bar."
+          checked: Config.barClockShowDate
+          onToggle: function(v) { SettingsService.setPath("components.bar.clock.showDate", v) }
+        }
+        RowTextInput {
+          colors: root.colors
+          visible: Config.barClockShowDate
+          title: "Date format"
+          description: "Qt date format, e.g. `ddd d MMM` -> Wed 5 Mar, `dd.MM` -> 05.03."
+          value: Config.barClockDateFormat
+          placeholder: "ddd d MMM"
+          onCommit: function(v) { SettingsService.setPath("components.bar.clock.dateFormat", v) }
+        }
+        RowToggle {
+          colors: root.colors
+          title: "Show seconds"
+          checked: Config.barClockShowSeconds
+          onToggle: function(v) { SettingsService.setPath("components.bar.clock.showSeconds", v) }
+        }
+      }
+    }
+
+
+    Column {
+      visible: root.activeCategory === "system"
+      width: parent.width
+      spacing: 14 * Config.uiScale
+
+      SettingsCard {
+        colors: root.colors
+        title: "Network speed"
+        RowInput {
+          colors: root.colors
+          title: "Refresh interval"
+          description: "How often to sample /proc/net/dev for throughput."
+          value: Config.barNetspeedRefreshSec
+          min: 1; max: 30
+          suffix: "s"
+          onCommit: function(v) { SettingsService.setPath("components.bar.netspeed.refreshSec", v) }
+        }
+        RowTextInput {
+          colors: root.colors
+          title: "Interface"
+          description: "Leave blank to sum all interfaces (except loopback)."
+          value: Config.barNetspeedInterface
+          placeholder: "all interfaces"
+          onCommit: function(v) { SettingsService.setPath("components.bar.netspeed.interface", v) }
+        }
+      }
+
+      SettingsCard {
+        colors: root.colors
+        title: "Window title"
+        RowInput {
+          colors: root.colors
+          title: "Max width"
+          description: "Longer titles get elided."
+          value: Config.barWindowTitleMaxWidth
+          min: 60; max: 800
+          suffix: "px"
+          onCommit: function(v) { SettingsService.setPath("components.bar.windowTitle.maxWidth", v) }
+        }
+      }
+
+      SettingsCard {
+        colors: root.colors
+        title: "Volume"
+        RowInput {
+          colors: root.colors
+          title: "Scroll step"
+          description: "Volume change per scroll tick on the volume widget. Middle-click toggles mute."
+          value: Config.barVolumeScrollStep
+          min: 1; max: 25
+          suffix: "%"
+          onCommit: function(v) { SettingsService.setPath("components.bar.volumeScrollStep", v) }
         }
       }
     }

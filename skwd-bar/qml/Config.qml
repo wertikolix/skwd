@@ -62,9 +62,9 @@ QtObject {
     property var _battery: _bar.battery ?? ({})
     readonly property var batteryNotifyRules: Array.isArray(_battery.notify) ? _battery.notify : []
 
-    readonly property var _defaultBarLeftLayout:  ["cpu", "gpu", "memory"]
-    readonly property var _defaultBarRightLayout: ["weather", "bluetooth", "wifi", "brightness", "battery", "volume", "notifications", "clock"]
-    readonly property var _allBarWidgets: ["cpu", "gpu", "memory", "qsmem", "weather", "bluetooth", "wifi", "volume", "clock", "brightness", "battery", "notifications"]
+    readonly property var _defaultBarLeftLayout:  ["workspaces", "window", "cpu", "gpu", "memory"]
+    readonly property var _defaultBarRightLayout: ["netspeed", "tray", "weather", "bluetooth", "wifi", "brightness", "battery", "volume", "notifications", "kblayout", "clock"]
+    readonly property var _allBarWidgets: ["workspaces", "window", "cpu", "gpu", "memory", "qsmem", "disk", "netspeed", "tray", "kblayout", "weather", "bluetooth", "wifi", "volume", "clock", "brightness", "battery", "notifications"]
     readonly property var barLeftLayout:  Array.isArray(_bar.leftLayout)  ? _bar.leftLayout.filter(s => _allBarWidgets.indexOf(s) !== -1)  : _defaultBarLeftLayout
     readonly property var barRightLayout: Array.isArray(_bar.rightLayout) ? _bar.rightLayout.filter(s => _allBarWidgets.indexOf(s) !== -1) : _defaultBarRightLayout
     readonly property var barWidgetOverrides: (typeof _bar.widgets === "object" && _bar.widgets !== null) ? _bar.widgets : ({})
@@ -93,7 +93,35 @@ QtObject {
     readonly property bool wifiEnabled: _bar.wifi !== undefined && _bar.wifi !== false && _bar.wifi?.enabled !== false
     readonly property bool bluetoothEnabled: _bar.bluetooth !== false
     readonly property bool volumeEnabled: _bar.volume !== false
+    readonly property int  volumeScrollStep: _bar.volumeScrollStep ?? 5
     readonly property bool calendarEnabled: _bar.calendar !== false
+
+    property var _clock: (typeof _bar.clock === "object" && _bar.clock !== null) ? _bar.clock : ({})
+    readonly property bool   clockShowDate:    _clock.showDate === true
+    readonly property bool   clockShowSeconds: _clock.showSeconds === true
+    readonly property string clockDateFormat:  _clock.dateFormat ?? "ddd d MMM"
+
+    property var _workspaces: (typeof _bar.workspaces === "object" && _bar.workspaces !== null) ? _bar.workspaces : ({})
+    readonly property bool workspacesEnabled:        _bar.workspaces !== false && _workspaces.enabled !== false
+    readonly property bool workspacesHideWhenSingle: _workspaces.hideWhenSingle === true
+    readonly property bool workspacesHideEmpty:      _workspaces.hideEmpty === true
+    readonly property bool workspacesAllOutputs:     _workspaces.allOutputs === true
+    readonly property int  workspacesMaxShown:       _workspaces.maxShown ?? 10
+
+    readonly property bool trayEnabled: _bar.tray !== false && _bar.tray?.enabled !== false
+
+    property var _netspeed: (typeof _bar.netspeed === "object" && _bar.netspeed !== null) ? _bar.netspeed : ({})
+    readonly property bool   netspeedEnabled:    _bar.netspeed !== false && _netspeed.enabled !== false
+    readonly property int    netspeedRefreshSec: _netspeed.refreshSec ?? 2
+    readonly property string netspeedInterface:  _netspeed.interface ?? ""
+
+    readonly property bool kblayoutEnabled: _bar.kblayout !== false && _bar.kblayout?.enabled !== false
+
+    property var _windowTitle: (typeof _bar.windowTitle === "object" && _bar.windowTitle !== null) ? _bar.windowTitle : ({})
+    readonly property bool windowTitleEnabled:  _bar.windowTitle !== false && _windowTitle.enabled !== false
+    readonly property int  windowTitleMaxWidth: _windowTitle.maxWidth ?? 260
+
+    readonly property bool diskEnabled: _bar.disk !== false && _bar.disk?.enabled !== false
     readonly property bool qsmemEnabled: _bar.qsmem?.enabled !== false
     readonly property int  qsmemRefreshSec: _bar.qsmem?.refreshSec ?? 5
     readonly property bool musicEnabled: _bar.music !== undefined && _bar.music !== false && _bar.music?.enabled !== false

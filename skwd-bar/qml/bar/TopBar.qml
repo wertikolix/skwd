@@ -1,8 +1,10 @@
 
 import Quickshell
 import Quickshell.Wayland
+import Quickshell.Widgets
 import Quickshell.Services.Pipewire
 import Quickshell.Services.UPower
+import Quickshell.Services.SystemTray
 import Quickshell.Bluetooth
 import Quickshell.Io
 import QtQuick
@@ -85,6 +87,7 @@ PanelWindow {
   property real _brightnessH: Config.brightnessEnabled ? brightnessDropdown.animatedHeight : 0
   property real _notifsH: Config.notificationsEnabled ? notificationsDropdown.animatedHeight : 0
   property real _qsmemH: qsmemDropdown.animatedHeight
+  property real _trayMenuH: Config.trayEnabled ? trayMenuDropdown.animatedHeight : 0
   function _sideHeight(side) {
     return Math.max(
       _widgetSide("wifi")          === side ? _wifiH       : 0,
@@ -94,7 +97,8 @@ PanelWindow {
       _widgetSide("weather")       === side ? _weatherH    : 0,
       _widgetSide("brightness")    === side ? _brightnessH : 0,
       _widgetSide("notifications") === side ? _notifsH     : 0,
-      _widgetSide("qsmem")         === side ? _qsmemH      : 0
+      _widgetSide("qsmem")         === side ? _qsmemH      : 0,
+      _widgetSide("tray")          === side ? _trayMenuH   : 0
     )
   }
   property real leftDropdownHeight:  _sideHeight("left")
@@ -120,6 +124,7 @@ PanelWindow {
   property real leftDropdownWidth:  Math.max(dropdownMinWidth, leftPanel  ? leftPanel.width  : dropdownMinWidth)
 
   function _widgetSide(id) {
+    if (id === "traymenu") id = "tray"
     return Config.barLeftLayout.indexOf(id) >= 0 ? "left" : "right"
   }
 
@@ -158,6 +163,105 @@ PanelWindow {
 
 
   property real diagSlant: 28
+
+
+  // ---- workspaces / window title / keyboard layout (WorkspacesService) ----
+
+  readonly property bool _wmWidgetsWanted: {
+    var placed = Config.barLeftLayout.concat(Config.barRightLayout)
+    return (Config.workspacesEnabled  && placed.indexOf("workspaces") !== -1 && !Config.barWidgetDisabled("workspaces"))
+        || (Config.kblayoutEnabled    && placed.indexOf("kblayout")   !== -1 && !Config.barWidgetDisabled("kblayout"))
+        || (Config.windowTitleEnabled && placed.indexOf("window")     !== -1 && !Config.barWidgetDisabled("window"))
+  }
+  on_WmWidgetsWantedChanged: if (_wmWidgetsWanted) WorkspacesService.start()
+  Component.onCompleted: if (_wmWidgetsWanted) WorkspacesService.start()
+
+  readonly property var _wsList: {
+    var src = WorkspacesService.workspaces
+    var out = []
+    for (var i = 0; i < src.length; i++) {
+      var ws = src[i]
+      if (!Config.workspacesAllOutputs && ws.output !== "" && bar.screen && ws.output !== bar.screen.name) continue
+      if (Config.workspacesHideEmpty && !ws.populated && !ws.active) continue
+      out.push(ws)
+      if (out.length >= Config.workspacesMaxShown) break
+    }
+    return out
+  }
+
+
+  // ---- network speed ----
+
+  QtObject {
+    id: netInfo
+    property real downBps: 0
+    property real upBps: 0
+    property real _prevRx: -1
+    property real _prevTx: -1
+    property double _prevTime: 0
+  }
+
+  function _fmtRate(bps) {
+    if (bps < 1024) return Math.round(bps) + " B"
+    if (bps < 1048576) return (bps / 1024).toFixed(bps < 102400 ? 1 : 0) + " K"
+    if (bps < 1073741824) return (bps / 1048576).toFixed(1) + " M"
+    return (bps / 1073741824).toFixed(1) + " G"
+  }
+
+  property var _netStdout: []
+  Process {
+    id: netProc
+    command: ["cat", "/proc/net/dev"]
+    stdout: SplitParser {
+      splitMarker: ""
+      onRead: data => bar._netStdout.push(data)
+    }
+    onExited: {
+      var text = bar._netStdout.join("")
+      bar._netStdout = []
+      var rx = 0, tx = 0
+      var iface = Config.netspeedInterface
+      var lines = text.split("\n")
+      for (var i = 0; i < lines.length; i++) {
+        var m = lines[i].trim().match(/^([^:\s]+):\s*(.*)$/)
+        if (!m) continue
+        if (m[1] === "lo") continue
+        if (iface !== "" && m[1] !== iface) continue
+        var cols = m[2].trim().split(/\s+/)
+        if (cols.length < 10) continue
+        rx += parseFloat(cols[0]) || 0
+        tx += parseFloat(cols[8]) || 0
+      }
+      var now = Date.now()
+      if (netInfo._prevTime > 0 && now > netInfo._prevTime && netInfo._prevRx >= 0) {
+        var dt = (now - netInfo._prevTime) / 1000
+        var dRx = rx - netInfo._prevRx
+        var dTx = tx - netInfo._prevTx
+        if (dRx >= 0 && dTx >= 0) {
+          netInfo.downBps = dRx / dt
+          netInfo.upBps = dTx / dt
+        }
+      }
+      netInfo._prevRx = rx
+      netInfo._prevTx = tx
+      netInfo._prevTime = now
+    }
+  }
+
+  Timer {
+    id: netTimer
+    interval: Math.max(1, Config.netspeedRefreshSec) * 1000
+    running: Config.netspeedEnabled && !Config.barWidgetDisabled("netspeed")
+      && (Config.barLeftLayout.indexOf("netspeed") !== -1 || Config.barRightLayout.indexOf("netspeed") !== -1)
+    repeat: true
+    triggeredOnStart: true
+    onTriggered: {
+      if (!netProc.running) {
+        bar._netStdout = []
+        netProc.running = true
+      }
+    }
+  }
 
 
   QtObject {
@@ -275,10 +379,16 @@ PanelWindow {
 
   function _widgetComponent(id) {
     switch (id) {
+      case "workspaces":    return _workspacesComp
+      case "window":        return _windowComp
       case "cpu":           return _cpuComp
       case "gpu":           return _gpuComp
       case "memory":        return _memoryComp
       case "qsmem":         return _qsmemComp
+      case "disk":          return _diskComp
+      case "netspeed":      return _netspeedComp
+      case "tray":          return _trayComp
+      case "kblayout":      return _kblayoutComp
       case "weather":       return _weatherComp
       case "bluetooth":     return _bluetoothComp
       case "wifi":          return _wifiComp
@@ -302,10 +412,16 @@ PanelWindow {
 
   function _widgetHasData(id) {
     switch (id) {
+      case "workspaces": return Config.workspacesEnabled && bar._wsList.length > (Config.workspacesHideWhenSingle ? 1 : 0)
+      case "window":     return Config.windowTitleEnabled && WorkspacesService.focusedTitle !== ""
       case "cpu":        return true
       case "gpu":        return true
       case "memory":     return true
       case "qsmem":      return Config.qsmemEnabled && qsmemInfo.totalMb > 0
+      case "disk":       return Config.diskEnabled
+      case "netspeed":   return Config.netspeedEnabled
+      case "tray":       return Config.trayEnabled && SystemTray.items.values.length > 0
+      case "kblayout":   return Config.kblayoutEnabled && WorkspacesService.kbAvailable
       case "weather":    return Config.weatherEnabled && bar.weatherTemp !== "" && bar.weatherTemp !== undefined
       case "bluetooth":  return Config.bluetoothEnabled && (bluetoothInfo.batteryText !== "" || Config.barWidgetLabel("bluetooth", "") !== "")
       case "wifi":       return Config.wifiEnabled && (wifiInfo.ssid !== "" || Config.barWidgetLabel("wifi", "") !== "")
@@ -386,6 +502,295 @@ PanelWindow {
     if (body.length > 0) args.push(body)
     batteryNotifyProc.command = args
     batteryNotifyProc.running = true
+  }
+
+  Component {
+    id: _workspacesComp
+    Item {
+      id: wsRoot
+      implicitWidth: wsRow.implicitWidth
+      implicitHeight: bar.barHeight
+
+      Row {
+        id: wsRow
+        anchors.verticalCenter: parent.verticalCenter
+        spacing: 5
+
+        Repeater {
+          model: bar._wsList
+          delegate: Item {
+            id: wsChip
+            required property var modelData
+            readonly property bool wsActive: modelData.active
+            readonly property bool wsUrgent: modelData.urgent
+            width: Math.max(20, chipText.implicitWidth + 14)
+            height: 18
+            anchors.verticalCenter: parent.verticalCenter
+
+            Rectangle {
+              anchors.fill: parent
+              antialiasing: true
+              color: wsChip.wsUrgent
+                ? Qt.rgba(bar.colors.errorContainer.r, bar.colors.errorContainer.g, bar.colors.errorContainer.b, 0.9)
+                : wsChip.wsActive
+                  ? Qt.rgba(bar.colors.primary.r, bar.colors.primary.g, bar.colors.primary.b, 0.95)
+                  : Qt.rgba(bar.colors.surfaceVariant.r, bar.colors.surfaceVariant.g, bar.colors.surfaceVariant.b, 0.45)
+              border.width: wsChip.wsActive ? 0 : 1
+              border.color: Qt.rgba(bar.colors.outline.r, bar.colors.outline.g, bar.colors.outline.b, 0.35)
+              transform: Matrix4x4 {
+                matrix: Qt.matrix4x4(1, -0.32, 0, wsChip.height * 0.16,
+                                     0,  1,    0, 0,
+                                     0,  0,    1, 0,
+                                     0,  0,    0, 1)
+              }
+              Behavior on color { ColorAnimation { duration: 140; easing.type: Easing.OutCubic } }
+            }
+
+            Text {
+              id: chipText
+              anchors.centerIn: parent
+              text: wsChip.modelData.label
+              font.pixelSize: 10
+              font.weight: Font.Bold
+              font.family: Style.fontFamily
+              color: wsChip.wsUrgent
+                ? bar.colors.errorContainerText
+                : wsChip.wsActive
+                  ? bar.colors.primaryText
+                  : (wsChip.modelData.populated
+                      ? bar.colors.surfaceText
+                      : Qt.rgba(bar.colors.surfaceText.r, bar.colors.surfaceText.g, bar.colors.surfaceText.b, 0.55))
+            }
+
+            MouseArea {
+              anchors.fill: parent
+              cursorShape: Qt.PointingHandCursor
+              onClicked: WorkspacesService.focusWorkspace(wsChip.modelData.focusArg)
+            }
+          }
+        }
+      }
+
+      WheelHandler {
+        target: null
+        onWheel: event => WorkspacesService.cycleWorkspace(event.angleDelta.y > 0 ? -1 : 1)
+      }
+    }
+  }
+
+  Component {
+    id: _windowComp
+    Item {
+      id: winRoot
+      implicitWidth: winRow.implicitWidth
+      implicitHeight: winRow.implicitHeight
+      property string overrideIcon: Config.barWidgetIcon("window", "")
+
+      Row {
+        id: winRow
+        anchors.verticalCenter: parent.verticalCenter
+        spacing: 5
+        Text {
+          text: winRoot.overrideIcon !== "" ? winRoot.overrideIcon : "󰖯"
+          font.pixelSize: 13
+          font.family: Style.fontFamilyNerdIcons
+          color: bar.colors.primary
+          anchors.verticalCenter: parent.verticalCenter
+        }
+        Text {
+          text: WorkspacesService.focusedTitle
+          font.pixelSize: 12; font.weight: Font.Medium
+          font.family: Style.fontFamily
+          color: bar.colors.tertiary
+          elide: Text.ElideRight
+          width: Math.min(implicitWidth, Config.windowTitleMaxWidth)
+          anchors.verticalCenter: parent.verticalCenter
+        }
+      }
+      MouseArea {
+        anchors.fill: parent
+        enabled: bar.activeDropdown !== ""
+        cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+        onClicked: bar.activeDropdown = ""
+      }
+    }
+  }
+
+  Component {
+    id: _diskComp
+    Item {
+      id: diskRoot
+      implicitWidth: diskRow.implicitWidth
+      implicitHeight: diskRow.implicitHeight
+      property string overrideLabel: Config.barWidgetLabel("disk", "")
+      Row {
+        id: diskRow
+        anchors.verticalCenter: parent.verticalCenter
+        spacing: 4
+        Text { text: Config.barWidgetIcon("disk", "󰋊"); font.pixelSize: 14; font.family: Style.fontFamilyNerdIcons; color: bar.colors.primary }
+        Text { visible: diskRoot.overrideLabel !== ""; text: diskRoot.overrideLabel; font.pixelSize: 12; font.weight: Font.Medium; font.family: Style.fontFamily; color: bar.colors.tertiary }
+        Text { visible: diskRoot.overrideLabel === ""; text: Math.round(SystemStatsService.storageUsage) + "%"; font.pixelSize: 12; font.weight: Font.Medium; font.family: Style.fontFamily; color: bar.colors.tertiary }
+      }
+      MouseArea {
+        anchors.fill: parent
+        enabled: bar.activeDropdown !== ""
+        cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+        onClicked: bar.activeDropdown = ""
+      }
+    }
+  }
+
+  Component {
+    id: _netspeedComp
+    Item {
+      id: netRoot
+      implicitWidth: netRow.implicitWidth
+      implicitHeight: netRow.implicitHeight
+      property string overrideLabel: Config.barWidgetLabel("netspeed", "")
+      Row {
+        id: netRow
+        anchors.verticalCenter: parent.verticalCenter
+        spacing: 3
+        Text {
+          text: Config.barWidgetIcon("netspeed", "󰇚")
+          font.pixelSize: 12; font.family: Style.fontFamilyNerdIcons
+          color: bar.colors.primary
+          anchors.verticalCenter: parent.verticalCenter
+        }
+        Text {
+          visible: netRoot.overrideLabel !== ""
+          text: netRoot.overrideLabel
+          font.pixelSize: 12; font.weight: Font.Medium; font.family: Style.fontFamily; color: bar.colors.tertiary
+          anchors.verticalCenter: parent.verticalCenter
+        }
+        Text {
+          visible: netRoot.overrideLabel === ""
+          text: bar._fmtRate(netInfo.downBps)
+          font.pixelSize: 12; font.weight: Font.Medium; font.family: Style.fontFamily
+          color: bar.colors.tertiary
+          width: Math.max(implicitWidth, 40)
+          horizontalAlignment: Text.AlignRight
+          anchors.verticalCenter: parent.verticalCenter
+        }
+        Text {
+          visible: netRoot.overrideLabel === ""
+          text: "󰕒"
+          font.pixelSize: 12; font.family: Style.fontFamilyNerdIcons
+          color: bar.colors.primary
+          anchors.verticalCenter: parent.verticalCenter
+        }
+        Text {
+          visible: netRoot.overrideLabel === ""
+          text: bar._fmtRate(netInfo.upBps)
+          font.pixelSize: 12; font.weight: Font.Medium; font.family: Style.fontFamily
+          color: bar.colors.tertiary
+          width: Math.max(implicitWidth, 40)
+          horizontalAlignment: Text.AlignRight
+          anchors.verticalCenter: parent.verticalCenter
+        }
+      }
+      MouseArea {
+        anchors.fill: parent
+        enabled: bar.activeDropdown !== ""
+        cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+        onClicked: bar.activeDropdown = ""
+      }
+    }
+  }
+
+  Component {
+    id: _trayComp
+    Item {
+      id: trayRoot
+      implicitWidth: trayRow.implicitWidth
+      implicitHeight: bar.barHeight
+
+      Row {
+        id: trayRow
+        anchors.verticalCenter: parent.verticalCenter
+        spacing: 8
+
+        Repeater {
+          model: SystemTray.items
+          delegate: Item {
+            id: trayIcon
+            required property var modelData
+            width: 16
+            height: 16
+            anchors.verticalCenter: parent.verticalCenter
+
+            IconImage {
+              anchors.fill: parent
+              source: trayIcon.modelData.icon
+              asynchronous: true
+            }
+
+            MouseArea {
+              anchors.fill: parent
+              acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+              cursorShape: Qt.PointingHandCursor
+              onClicked: function(mouse) {
+                if (mouse.button === Qt.RightButton || trayIcon.modelData.onlyMenu) {
+                  if (!trayIcon.modelData.hasMenu) return
+                  var sameMenu = bar._trayMenuHandle === trayIcon.modelData.menu
+                  bar._trayMenuHandle = trayIcon.modelData.menu
+                  bar._trayMenuTitle = trayIcon.modelData.title || trayIcon.modelData.id || "tray"
+                  if (bar.activeDropdown === "traymenu" && !sameMenu) {
+                    var p = trayIcon.mapToItem(bar.contentItem, trayIcon.width / 2, 0)
+                    bar.dropdownCenterX = p.x
+                  } else {
+                    bar._openDropdown("traymenu", trayIcon)
+                  }
+                } else if (mouse.button === Qt.MiddleButton) {
+                  trayIcon.modelData.secondaryActivate()
+                } else {
+                  trayIcon.modelData.activate()
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  Component {
+    id: _kblayoutComp
+    Item {
+      id: kbRoot
+      implicitWidth: kbRow.implicitWidth
+      implicitHeight: kbRow.implicitHeight
+      property string overrideIcon:  Config.barWidgetIcon("kblayout", "")
+      property string overrideLabel: Config.barWidgetLabel("kblayout", "")
+
+      Row {
+        id: kbRow
+        anchors.verticalCenter: parent.verticalCenter
+        spacing: 4
+        Text {
+          text: kbRoot.overrideIcon !== "" ? kbRoot.overrideIcon : "󰌌"
+          font.pixelSize: 14
+          font.family: Style.fontFamilyNerdIcons
+          color: bar.colors.primary
+        }
+        Text {
+          text: kbRoot.overrideLabel !== "" ? kbRoot.overrideLabel : WorkspacesService.kbLayoutShort
+          font.pixelSize: 12; font.weight: Font.Medium
+          font.family: Style.fontFamily
+          color: bar.colors.tertiary
+        }
+      }
+
+      MouseArea {
+        anchors.fill: parent
+        cursorShape: Qt.PointingHandCursor
+        onClicked: WorkspacesService.switchKbLayout()
+      }
+      WheelHandler {
+        target: null
+        onWheel: event => WorkspacesService.switchKbLayout()
+      }
+    }
   }
 
   Component {
@@ -628,8 +1033,9 @@ PanelWindow {
         spacing: 4
         Text {
           text: volumeRoot.overrideIcon !== "" ? volumeRoot.overrideIcon : (function() {
-            let vol = Pipewire.defaultAudioSink?.audio?.volume ?? 0
-            if (vol === 0) return "󰖁"
+            let audio = Pipewire.defaultAudioSink?.audio
+            let vol = audio?.volume ?? 0
+            if (audio?.muted || vol === 0) return "󰖁"
             if (vol < 0.33) return "󰕿"
             if (vol < 0.66) return "󰖀"
             return "󰕾"
@@ -652,7 +1058,21 @@ PanelWindow {
       MouseArea {
         anchors.fill: parent
         cursorShape: Qt.PointingHandCursor
-        onClicked: bar._openDropdown("volume", parent)
+        acceptedButtons: Qt.LeftButton | Qt.MiddleButton
+        onClicked: function(mouse) {
+          if (mouse.button === Qt.MiddleButton) {
+            var audio = Pipewire.defaultAudioSink?.audio
+            if (audio) audio.muted = !audio.muted
+            return
+          }
+          bar._openDropdown("volume", parent)
+        }
+        onWheel: function(wheel) {
+          var audio = Pipewire.defaultAudioSink?.audio
+          if (!audio) return
+          var step = (Config.volumeScrollStep / 100) * (wheel.angleDelta.y > 0 ? 1 : -1)
+          audio.volume = Math.max(0, Math.min(1, audio.volume + step))
+        }
       }
     }
   }
@@ -683,9 +1103,11 @@ PanelWindow {
           spacing: 0
           anchors.verticalCenter: parent.verticalCenter
           visible: clockRoot.overrideLabel === ""
+          Text { visible: Config.clockShowDate; text: Qt.formatDate(bar.clock.date, Config.clockDateFormat); font.pixelSize: 13; font.weight: Font.DemiBold; font.family: Style.fontFamily; color: bar.colors.tertiary; opacity: 0.85; rightPadding: 7 }
           Text { text: Qt.formatTime(bar.clock.date, "HH"); font.pixelSize: 13; font.weight: Font.DemiBold; font.family: Style.fontFamily; color: bar.colors.primary }
           Text { text: ":";                                  font.pixelSize: 13; font.weight: Font.DemiBold; font.family: Style.fontFamily; color: bar.colors.tertiary }
           Text { text: Qt.formatTime(bar.clock.date, "mm"); font.pixelSize: 13; font.weight: Font.DemiBold; font.family: Style.fontFamily; color: bar.colors.tertiary }
+          Text { visible: Config.clockShowSeconds; text: ":" + Qt.formatTime(bar.clock.date, "ss"); font.pixelSize: 13; font.weight: Font.DemiBold; font.family: Style.fontFamily; color: bar.colors.tertiary; opacity: 0.6 }
         }
         Text {
           visible: clockRoot.overrideLabel !== ""
@@ -1385,6 +1807,27 @@ PanelWindow {
     onClearAllRequested: bar._clearAllNotifications()
   }
   DropdownTail { dropdown: notificationsDropdown; barWidth: bar.width; barSideMargin: bar._pillSideMargin; tailTopMargin: bar._dropTopMargin(0) }
+
+  property var _trayMenuHandle: null
+  property string _trayMenuTitle: ""
+
+  TrayMenuDropdown {
+    id: trayMenuDropdown
+    readonly property string sideOf: bar._widgetSide("tray")
+    side: sideOf
+    x: bar._dropX(sideOf, contentWidth)
+    anchors.top: parent.top
+    width: contentWidth
+    anchors.topMargin: bar._dropTopMargin(0)
+    z: active ? 2 : 1
+    contentWidth: bar.dropdownContentWidth
+    colors: bar.colors
+    active: Config.trayEnabled && bar.activeDropdown === "traymenu"
+    menuHandle: bar._trayMenuHandle
+    title: bar._trayMenuTitle
+    onRequestClose: bar.closeAllDropdowns()
+  }
+  DropdownTail { dropdown: trayMenuDropdown; barWidth: bar.width; barSideMargin: bar._pillSideMargin; tailTopMargin: bar._dropTopMargin(0) }
 
   QsMemDropdown {
     id: qsmemDropdown

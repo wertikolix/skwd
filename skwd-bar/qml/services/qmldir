@@ -1,5 +1,6 @@
 singleton SystemStatsService 1.0 SystemStatsService.qml
 singleton WmService 1.0 WmService.qml
+singleton WorkspacesService 1.0 WorkspacesService.qml
 singleton WifiService 1.0 WifiService.qml
 singleton IpcService 1.0 IpcService.qml
 singleton WeatherService 1.0 WeatherService.qml
