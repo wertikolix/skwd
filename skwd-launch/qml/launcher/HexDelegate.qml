@@ -44,6 +44,8 @@ Item {
     readonly property string _customIcon: itemData ? (itemData.customIcon || "") : ""
     readonly property bool   _useDesktopIcon: itemData ? (itemData.useDesktopIcon === true) : false
     readonly property bool   _preferGlyph: _customIcon !== "" && !_useDesktopIcon
+    readonly property string _iconName: itemData ? (itemData.icon || "") : ""
+    readonly property string _iconThemeUrl: _iconName !== "" ? Quickshell.iconPath(_iconName, true) : ""
 
     Item {
         id: hexMask
@@ -78,15 +80,23 @@ Item {
             width: hexItem.width * 1.3
             height: hexItem.height * 1.3
             color: Style.fallbackAccent
-            opacity: ((bgImage.status === Image.Ready && bgImage.source != "") || (thumbImage.status === Image.Ready && thumbImage.source != "")) ? 0 : 0.08
+            opacity: ((bgImage.status === Image.Ready && bgImage.source != "")
+                || (thumbImage.status === Image.Ready && thumbImage.source != "")
+                || (iconThemeImage.status === Image.Ready && iconThemeImage.source != "")
+                || hexItem._preferGlyph) ? 0 : 0.08
             Behavior on opacity { NumberAnimation { duration: Style.animNormal; easing.type: Easing.OutCubic } }
             visible: opacity > 0
 
             Text {
                 anchors.centerIn: parent
-                text: "\u{f0553}"
-                font.family: Style.fontFamilyNerdIcons; font.pixelSize: 22
-                color: Qt.rgba(1, 1, 1, 0.1)
+                anchors.verticalCenterOffset: -hexItem.height * 0.04
+                text: hexItem._label.length > 0 ? hexItem._label.charAt(0).toUpperCase() : "\u{f0553}"
+                font.family: Style.fontFamilyHeading
+                font.pixelSize: Math.max(24, hexItem.height * 0.32)
+                font.weight: Font.Bold
+                color: hexItem.colors
+                    ? Qt.rgba(hexItem.colors.primary.r, hexItem.colors.primary.g, hexItem.colors.primary.b, 0.6)
+                    : Qt.rgba(1, 1, 1, 0.6)
             }
         }
 
@@ -113,6 +123,26 @@ Item {
             height: hexItem.height * 0.55
             anchors.centerIn: parent
             source: (bgImage.status === Image.Ready || hexItem._preferGlyph) ? "" : hexItem._thumbUrl
+            fillMode: Image.PreserveAspectFit
+            smooth: true
+            asynchronous: true
+            sourceSize.width: 256
+            sourceSize.height: 256
+            opacity: status === Image.Ready ? 1 : 0
+            Behavior on opacity { NumberAnimation { duration: Style.animNormal; easing.type: Easing.OutCubic } }
+        }
+
+        Image {
+            id: iconThemeImage
+            width: hexItem.width * 0.55
+            height: hexItem.height * 0.55
+            anchors.centerIn: parent
+            source: {
+                if (hexItem._preferGlyph) return ""
+                if (bgImage.status === Image.Ready) return ""
+                if (thumbImage.status === Image.Ready || thumbImage.status === Image.Loading) return ""
+                return hexItem._iconThemeUrl
+            }
             fillMode: Image.PreserveAspectFit
             smooth: true
             asynchronous: true

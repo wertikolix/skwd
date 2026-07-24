@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Shapes
 import QtQuick.Effects
+import Quickshell
 import ".."
 
 Item {
@@ -174,10 +175,39 @@ Item {
             visible: !bgImage.visible && !imageContainer._preferGlyph && status === Image.Ready
         }
 
+        Image {
+            id: iconThemeImage
+            anchors.centerIn: parent
+            width: Math.min(parent.width * 0.6, 128)
+            height: width
+            source: {
+                if (imageContainer._preferGlyph) return ""
+                if (bgImage.visible || thumbImage.visible) return ""
+                var n = delegateItem.model.icon || ""
+                return n !== "" ? Quickshell.iconPath(n, true) : ""
+            }
+            fillMode: Image.PreserveAspectFit
+            smooth: true
+            asynchronous: true
+            cache: true
+            sourceSize.width: 256
+            sourceSize.height: 256
+            visible: status === Image.Ready
+        }
+
         Rectangle {
             anchors.fill: parent
-            visible: !bgImage.visible && !thumbImage.visible && !glyphIcon.visible
+            visible: !bgImage.visible && !thumbImage.visible && !iconThemeImage.visible && !glyphIcon.visible
             color: delegateItem.colors ? Qt.rgba(delegateItem.colors.surfaceVariant.r, delegateItem.colors.surfaceVariant.g, delegateItem.colors.surfaceVariant.b, 0.8) : Qt.rgba(0.18, 0.20, 0.25, 0.8)
+
+            Text {
+                anchors.centerIn: parent
+                text: (delegateItem.model.displayName || delegateItem.model.name || "?").charAt(0).toUpperCase()
+                font.family: Style.fontFamilyHeading
+                font.pixelSize: 44
+                font.weight: Font.Bold
+                color: delegateItem.colors ? Qt.rgba(delegateItem.colors.primary.r, delegateItem.colors.primary.g, delegateItem.colors.primary.b, 0.55) : Qt.rgba(1, 1, 1, 0.4)
+            }
         }
 
         Text {

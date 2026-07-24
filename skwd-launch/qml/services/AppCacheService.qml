@@ -18,7 +18,7 @@ QtObject {
     readonly property string splashThumbDir: cacheDir + "/app-launcher/splash-thumbs"
     readonly property string versionFile: cacheDir + "/app-launcher/list.version"
 
-    readonly property int cacheVersion: 2
+    readonly property int cacheVersion: 3
     readonly property string appsJsonPath: configDir + "/data/apps.json"
     readonly property int thumbSize: 256
     readonly property int splashThumbWidth: 640
@@ -132,17 +132,36 @@ QtObject {
             '  local name="$1"\n' +
             '  [ -z "$name" ] && return\n' +
             '  [ "${name:0:1}" = "/" ] && [ -f "$name" ] && echo "$name" && return\n' +
-            '  local dirs="$HOME_DIR/.local/share/icons /usr/share/icons/hicolor /usr/share/icons/Adwaita /usr/share/icons/breeze /usr/share/icons/breeze-dark /usr/share/pixmaps /usr/share/icons"\n' +
-            '  local sizes="512x512 256x256 128x128 96x96 64x64 48x48 scalable"\n' +
-            '  for d in $dirs; do\n' +
-            '    [ -d "$d" ] || continue\n' +
+            '  local themes="" r t\n' +
+            '  for r in "$HOME_DIR/.local/share/icons" /usr/share/icons; do\n' +
+            '    [ -d "$r/hicolor" ] && themes="$themes $r/hicolor"\n' +
+            '  done\n' +
+            '  for r in "$HOME_DIR/.local/share/icons" /usr/share/icons; do\n' +
+            '    [ -d "$r" ] || continue\n' +
+            '    for t in "$r"/*/; do\n' +
+            '      t="${t%/}"\n' +
+            '      case "${t##*/}" in hicolor) continue ;; esac\n' +
+            '      themes="$themes $t"\n' +
+            '    done\n' +
+            '  done\n' +
+            '  local sizes="512x512 scalable 256x256 192x192 128x128 96x96 64x64 48x48"\n' +
+            '  local nsizes="512 256 128 96 64 48"\n' +
+            '  local d s cat ext\n' +
+            '  for d in $themes; do\n' +
             '    for s in $sizes; do\n' +
-            '      for cat in apps applications; do\n' +
+            '      for cat in apps applications devices status; do\n' +
             '        for ext in .png .svg .xpm; do\n' +
             '          [ -f "$d/$s/$cat/${name}${ext}" ] && echo "$d/$s/$cat/${name}${ext}" && return\n' +
             '        done\n' +
             '      done\n' +
             '    done\n' +
+            '    for s in $nsizes; do\n' +
+            '      for ext in .png .svg .xpm; do\n' +
+            '        [ -f "$d/apps/$s/${name}${ext}" ] && echo "$d/apps/$s/${name}${ext}" && return\n' +
+            '      done\n' +
+            '    done\n' +
+            '  done\n' +
+            '  for d in /usr/share/pixmaps "$HOME_DIR/.local/share/pixmaps"; do\n' +
             '    for ext in .png .svg .xpm ""; do\n' +
             '      [ -f "$d/${name}${ext}" ] && echo "$d/${name}${ext}" && return\n' +
             '    done\n' +
